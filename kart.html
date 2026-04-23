@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poker Kazanan Belirleyici</title>
+  <style>
+    :root{
+      --bg:#f7f7f8;
+      --panel:#ffffff;
+      --border:#d7d7dc;
+      --text:#171717;
+      --muted:#6f7177;
+      --accent:#1f5eff;
+      --danger:#d82626;
+      --green:#16833a;
+      --suit-size:34px;
+      --suit-gap:6px;
+      --card-control-width:calc((var(--suit-size) * 4) + (var(--suit-gap) * 3));
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      font-family:Arial, Helvetica, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    .container{
+      max-width:980px;
+      margin:0 auto;
+      padding:10px;
+    }
+
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:10px;
+      margin-bottom:10px;
+    }
+
+    .section-title{
+      margin:0 0 10px;
+      font-size:18px;
+      line-height:1.2;
+    }
+
+    .community-grid,
+    .players{
+      display:grid;
+      gap:8px;
+    }
+
+    .community-grid{
+      grid-template-columns:repeat(auto-fit, minmax(160px, max-content));
+      justify-content:center;
+    }
+
+    .players{
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      margin-top:10px;
+    }
+
+    .player-card{
+      min-width:0;
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:8px;
+      background:#fff;
+    }
+
+    .player-head{
+      display:grid;
+      grid-template-columns:24px 1fr 24px;
+      align-items:center;
+      gap:6px;
+      margin-bottom:7px;
+    }
+
+    .player-name{
+      grid-column:2;
+      text-align:center;
+      font-size:12px;
+      font-weight:700;
+    }
+
+    .remove-player-btn{
+      grid-column:3;
+      justify-self:end;
+    }
+
+    .player-grid{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:7px;
+      justify-items:center;
+    }
+
+    input, button{
+      font:inherit;
+      border-radius:8px;
+    }
+
+    button{
+      border:0;
+      cursor:pointer;
+      font-weight:700;
+      min-height:38px;
+      padding:8px 12px;
+    }
+
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:10px;
+    }
+
+    .btn-danger{ background:var(--danger); color:white; }
+    .btn-green{ background:var(--green); color:white; }
+
+    .card-picker{
+      width:fit-content;
+      max-width:100%;
+      min-width:0;
+      display:grid;
+      justify-items:center;
+      padding:8px;
+      border:1px solid var(--border);
+      border-radius:8px;
+      background:#fff;
+    }
+
+    .card-title{
+      width:var(--card-control-width);
+      margin-bottom:6px;
+      font-size:12px;
+      font-weight:700;
+      text-align:center;
+    }
+
+    .suit-row{
+      width:var(--card-control-width);
+      display:grid;
+      grid-template-columns:repeat(4, var(--suit-size));
+      gap:var(--suit-gap);
+      margin-bottom:7px;
+    }
+
+    .suit-btn{
+      width:var(--suit-size);
+      height:var(--suit-size);
+      min-height:var(--suit-size);
+      padding:0;
+      border:2px solid #171717;
+      border-radius:50%;
+      background:#fff;
+      color:#171717;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:19px;
+      line-height:1;
+      user-select:none;
+      appearance:none;
+    }
+
+    .suit-btn.red{ color:#d82626; }
+    .suit-btn.black{ color:#171717; }
+
+    .suit-btn.active{
+      background:#171717;
+      border-color:#171717;
+      color:#fff;
+    }
+
+    .suit-btn.active.red{
+      background:#d82626;
+      border-color:#d82626;
+      color:#fff;
+    }
+
+    .rank-input{
+      width:var(--card-control-width);
+      max-width:var(--card-control-width);
+      min-width:0;
+      padding:8px 6px;
+      border:2px solid #171717;
+      border-radius:4px;
+      background:#fff;
+      text-align:center;
+      font-size:14px;
+      font-weight:700;
+      outline:none;
+    }
+
+    .rank-input::placeholder{
+      color:#7b7d84;
+      opacity:1;
+    }
+
+    .remove-player-btn{
+      width:24px;
+      height:24px;
+      min-height:24px;
+      padding:0;
+      border-radius:50%;
+      line-height:1;
+      font-size:15px;
+    }
+
+    .add-player-tile{
+      min-height:166px;
+      border:1px dashed var(--border);
+      border-radius:8px;
+      background:#fff;
+      color:var(--muted);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:42px;
+      font-weight:400;
+      padding:0;
+    }
+
+    .add-player-tile:hover{
+      border-color:var(--accent);
+      color:var(--accent);
+    }
+
+    .results{ display:grid; gap:8px; }
+
+    .result-card{
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:10px;
+      background:#fff;
+      font-size:14px;
+      line-height:1.35;
+    }
+
+    .winner{
+      border-color:#e4a018;
+      background:#fff9e8;
+    }
+
+    .error{
+      margin-top:10px;
+      padding:10px;
+      border-radius:8px;
+      background:#ffe5e5;
+      color:#951b1b;
+      display:none;
+      white-space:pre-line;
+      font-size:14px;
+    }
+
+    @media (max-width: 430px){
+      :root{
+        --suit-size:30px;
+        --suit-gap:5px;
+      }
+
+      .container{ padding:6px; }
+      .panel{ padding:8px; margin-bottom:8px; }
+      .section-title{ font-size:17px; margin-bottom:8px; }
+      .community-grid{ grid-template-columns:repeat(2, minmax(0, max-content)); }
+      .players{ gap:6px; }
+      .player-card{ padding:6px; }
+      .card-picker{ padding:6px; }
+      .card-title{ font-size:11px; margin-bottom:5px; }
+      .rank-input{ font-size:13px; padding:7px 4px; }
+      .add-player-tile{ min-height:148px; }
+      button{ min-height:36px; }
+    }
+
+    @media (max-width: 340px){
+      :root{
+        --suit-size:27px;
+        --suit-gap:4px;
+      }
+
+      .players{ grid-template-columns:1fr; }
+      .community-grid{ grid-template-columns:1fr; }
+      .add-player-tile{ min-height:130px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="panel">
+      <h2 class="section-title">Ortak Kartlar</h2>
+      <div id="communityCards" class="community-grid"></div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h2 class="section-title" style="margin:0;">Oyuncular</h2>
+        <div class="actions" style="margin-top:0;">
+          <button class="btn-danger" id="resetBtn" type="button">Temizle</button>
+        </div>
+      </div>
+
+      <div id="players" class="players"></div>
+
+      <div class="actions">
+        <button class="btn-green" id="calcBtn" type="button">Kazananı Belirle</button>
+      </div>
+
+      <div id="errorBox" class="error"></div>
+    </div>
+
+    <div class="panel">
+      <h2 class="section-title">Sonuçlar</h2>
+      <div id="results" class="results">
+        <div class="result-card">Henüz hesaplama yapılmadı.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const RANK_MAP = {
+      '2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,
+      'T':10,'J':11,'Q':12,'K':13,'A':14
+    };
+
+    const CATEGORY_LABEL = {
+      8:'Straight Flush',
+      7:'Four of a Kind',
+      6:'Full House',
+      5:'Flush',
+      4:'Straight',
+      3:'Three of a Kind',
+      2:'Two Pair',
+      1:'One Pair',
+      0:'High Card'
+    };
+
+    const SUITS = [
+      { code:'H', symbol:'♥', cls:'red', name:'Kupa' },
+      { code:'D', symbol:'♦', cls:'red', name:'Karo' },
+      { code:'S', symbol:'♠', cls:'black', name:'Maça' },
+      { code:'C', symbol:'♣', cls:'black', name:'Sinek' }
+    ];
+
+    const communityContainer = document.getElementById('communityCards');
+    const playersContainer = document.getElementById('players');
+    const resultsEl = document.getElementById('results');
+    const errorBox = document.getElementById('errorBox');
+
+    let playerCount = 0;
+
+    function showError(msg){
+      errorBox.style.display = 'block';
+      errorBox.textContent = msg;
+    }
+
+    function clearError(){
+      errorBox.style.display = 'none';
+      errorBox.textContent = '';
+    }
+
+    function createCardPicker(title, idPrefix){
+      const wrap = document.createElement('div');
+      wrap.className = 'card-picker';
+      wrap.innerHTML = `
+        <div class="card-title">${title}</div>
+        <div class="suit-row" data-suit-row="${idPrefix}"></div>
+        <input class="rank-input" data-rank-input="${idPrefix}" maxlength="2" placeholder="A, K, Q, J, 10..2" />
+      `;
+
+      const row = wrap.querySelector(`[data-suit-row="${idPrefix}"]`);
+
+      SUITS.forEach(suit => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `suit-btn ${suit.cls}`;
+        btn.dataset.suit = suit.code;
+        btn.title = suit.name;
+        btn.innerHTML = suit.symbol;
+        btn.addEventListener('click', () => {
+          row.querySelectorAll('.suit-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+        row.appendChild(btn);
+      });
+
+      return wrap;
+    }
+
+    function getSelectedSuit(cardPicker){
+      const active = cardPicker.querySelector('.suit-btn.active');
+      return active ? active.dataset.suit : '';
+    }
+
+    function setSelectedSuit(cardPicker, suitCode){
+      cardPicker.querySelectorAll('.suit-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.suit === suitCode);
+      });
+    }
+
+    function getRankValue(cardPicker){
+      return cardPicker.querySelector('.rank-input').value.trim().toUpperCase();
+    }
+
+    function setRankValue(cardPicker, value){
+      cardPicker.querySelector('.rank-input').value = value;
+    }
+
+    function buildCardCode(cardPicker){
+      const suit = getSelectedSuit(cardPicker);
+      let rank = getRankValue(cardPicker);
+
+      if (!suit && !rank) return '';
+
+      if (!suit || !rank){
+        throw new Error('Bir kartta hem tür hem değer olmalı.');
+      }
+
+      if (rank === '10') rank = 'T';
+
+      if (!/^(A|K|Q|J|T|[2-9])$/.test(rank)){
+        throw new Error(`Geçersiz kart değeri: ${rank}. Geçerli değerler: A, K, Q, J, 10, 9...2`);
+      }
+
+      return rank + suit;
+    }
+
+    function parseCard(code){
+      if (!code) return null;
+      if (!/^[2-9TJQKA][HDCS]$/.test(code)){
+        throw new Error(`Geçersiz kart: ${cardCodeLabel(code)}`);
+      }
+      return {
+        code,
+        rank: RANK_MAP[code[0]],
+        suit: code[1]
+      };
+    }
+
+    function addCommunityCards(){
+      communityContainer.innerHTML = '';
+      const names = ['Flop 1','Flop 2','Flop 3','Turn','River'];
+      for(let i=0; i<5; i++){
+        communityContainer.appendChild(createCardPicker(names[i], `community_${i}`));
+      }
+    }
+
+    function addPlayer(){
+      clearError();
+      playerCount++;
+      playersContainer.querySelector('.add-player-tile')?.remove();
+
+      const playerCard = document.createElement('div');
+      playerCard.className = 'player-card';
+      playerCard.innerHTML = `
+        <div class="player-head">
+          <div class="player-name">Oyuncu ${playerCount}</div>
+          <button class="btn-danger remove-player-btn" type="button" title="Oyuncuyu sil">&times;</button>
+        </div>
+        <div class="player-grid">
+          <div class="player-card-slot slot1"></div>
+          <div class="player-card-slot slot2"></div>
+        </div>
+      `;
+
+      playerCard.querySelector('.slot1').appendChild(createCardPicker('Kart 1', `player_${playerCount}_1`));
+      playerCard.querySelector('.slot2').appendChild(createCardPicker('Kart 2', `player_${playerCount}_2`));
+
+      playerCard.querySelector('.remove-player-btn').addEventListener('click', () => {
+        if (playersContainer.querySelectorAll('.player-card').length <= 2) {
+          showError('En az 2 oyuncu olmalı.');
+          return;
+        }
+        playerCard.remove();
+        refreshAddPlayerTile();
+      });
+
+      playersContainer.appendChild(playerCard);
+      refreshAddPlayerTile();
+    }
+
+    function refreshAddPlayerTile(){
+      playersContainer.querySelector('.add-player-tile')?.remove();
+
+      const addTile = document.createElement('button');
+      addTile.className = 'add-player-tile';
+      addTile.type = 'button';
+      addTile.title = 'Oyuncu ekle';
+      addTile.textContent = '+';
+      addTile.addEventListener('click', addPlayer);
+      playersContainer.appendChild(addTile);
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+    }
+
+    function combinations(arr, k){
+      const out = [];
+      const cur = [];
+
+      function rec(start){
+        if(cur.length === k){
+          out.push([...cur]);
+          return;
+        }
+        for(let i=start; i<arr.length; i++){
+          cur.push(arr[i]);
+          rec(i+1);
+          cur.pop();
+        }
+      }
+
+      rec(0);
+      return out;
+    }
+
+    function countByRank(cards){
+      const map = new Map();
+      for(const c of cards){
+        map.set(c.rank, (map.get(c.rank) || 0) + 1);
+      }
+      return map;
+    }
+
+    function getStraightHigh(ranks){
+      const unique = [...new Set(ranks)].sort((a,b)=>b-a);
+      if(unique.includes(14)) unique.push(1);
+
+      for(let i=0; i<=unique.length-5; i++){
+        let ok = true;
+        for(let j=0; j<4; j++){
+          if(unique[i+j] - 1 !== unique[i+j+1]){
+            ok = false;
+            break;
+          }
+        }
+        if(ok) return unique[i] === 1 ? 5 : unique[i];
+      }
+      return null;
+    }
+
+    function evaluate5(cards){
+      const ranks = cards.map(c=>c.rank).sort((a,b)=>b-a);
+      const flush = cards.every(c => c.suit === cards[0].suit);
+      const straightHigh = getStraightHigh(ranks);
+
+      const rankCounts = [...countByRank(cards).entries()].sort((a,b)=>{
+        if(b[1] !== a[1]) return b[1] - a[1];
+        return b[0] - a[0];
+      });
+
+      if(flush && straightHigh){
+        return { category:8, tiebreak:[straightHigh] };
+      }
+
+      if(rankCounts[0][1] === 4){
+        return { category:7, tiebreak:[rankCounts[0][0], rankCounts[1][0]] };
+      }
+
+      if(rankCounts[0][1] === 3 && rankCounts[1][1] === 2){
+        return { category:6, tiebreak:[rankCounts[0][0], rankCounts[1][0]] };
+      }
+
+      if(flush){
+        return { category:5, tiebreak:ranks };
+      }
+
+      if(straightHigh){
+        return { category:4, tiebreak:[straightHigh] };
+      }
+
+      if(rankCounts[0][1] === 3){
+        const trips = rankCounts[0][0];
+        const kickers = rankCounts.slice(1).map(x=>x[0]).sort((a,b)=>b-a);
+        return { category:3, tiebreak:[trips, ...kickers] };
+      }
+
+      if(rankCounts[0][1] === 2 && rankCounts[1][1] === 2){
+        const pairs = [rankCounts[0][0], rankCounts[1][0]].sort((a,b)=>b-a);
+        const kicker = rankCounts[2][0];
+        return { category:2, tiebreak:[...pairs, kicker] };
+      }
+
+      if(rankCounts[0][1] === 2){
+        const pair = rankCounts[0][0];
+        const kickers = rankCounts.slice(1).map(x=>x[0]).sort((a,b)=>b-a);
+        return { category:1, tiebreak:[pair, ...kickers] };
+      }
+
+      return { category:0, tiebreak:ranks };
+    }
+
+    function compareHands(a,b){
+      if(a.category !== b.category) return a.category - b.category;
+      const len = Math.max(a.tiebreak.length, b.tiebreak.length);
+      for(let i=0; i<len; i++){
+        const av = a.tiebreak[i] || 0;
+        const bv = b.tiebreak[i] || 0;
+        if(av !== bv) return av - bv;
+      }
+      return 0;
+    }
+
+    function bestHandFromSeven(cards){
+      const all5 = combinations(cards, 5);
+      let bestEval = null;
+      let bestCards = null;
+
+      for(const combo of all5){
+        const ev = evaluate5(combo);
+        if(!bestEval || compareHands(ev, bestEval) > 0){
+          bestEval = ev;
+          bestCards = combo;
+        }
+      }
+
+      return { ...bestEval, bestCards };
+    }
+
+    function rankLabel(v){
+      const m = {14:'A',13:'K',12:'Q',11:'J',10:'10',9:'9',8:'8',7:'7',6:'6',5:'5',4:'4',3:'3',2:'2'};
+      return m[v] || String(v);
+    }
+
+    function cardCodeLabel(code){
+      if(!code) return '';
+      const rankCode = code.slice(0, code.length - 1);
+      const suitCode = code.slice(-1);
+      const suit = SUITS.find(item => item.code === suitCode);
+      const rank = rankCode === 'T' ? '10' : rankCode;
+      return `${rank}${suit ? suit.symbol : suitCode}`;
+    }
+
+    function cardLabel(card){
+      return cardCodeLabel(card.code);
+    }
+
+    function handSummary(hand){
+      return `${CATEGORY_LABEL[hand.category]} | Eşitlik değeri: ${hand.tiebreak.map(rankLabel).join(' - ')}`;
+    }
+
+    function collectGameState(){
+      const community = [];
+      const communityPickers = [...communityContainer.querySelectorAll('.card-picker')];
+
+      for(const picker of communityPickers){
+        const code = buildCardCode(picker);
+        const parsed = parseCard(code);
+        if(parsed) community.push(parsed);
+      }
+
+      if(community.length < 3){
+        throw new Error('En az 3 ortak kart girilmeli.');
+      }
+
+      const players = [...playersContainer.querySelectorAll('.player-card')].map((playerEl, idx) => {
+        const name = playerEl.querySelector('.player-name').textContent.trim() || `Oyuncu ${idx+1}`;
+        const pickers = playerEl.querySelectorAll('.card-picker');
+        const c1 = parseCard(buildCardCode(pickers[0]));
+        const c2 = parseCard(buildCardCode(pickers[1]));
+
+        if(!c1 || !c2){
+          throw new Error(`${name} için 2 kart da girilmeli.`);
+        }
+
+        return { name, holeCards:[c1,c2] };
+      });
+
+      if(players.length < 2){
+        throw new Error('En az 2 oyuncu olmalı.');
+      }
+
+      const allCodes = [
+        ...community.map(c=>c.code),
+        ...players.flatMap(p => p.holeCards.map(c=>c.code))
+      ];
+
+      const dup = allCodes.filter((x,i)=>allCodes.indexOf(x)!==i);
+      if(dup.length){
+        throw new Error(`Aynı kart birden fazla kez kullanılmış: ${[...new Set(dup)].map(cardCodeLabel).join(', ')}`);
+      }
+
+      return { community, players };
+    }
+
+    function calculateWinner(){
+      clearError();
+
+      try{
+        const { community, players } = collectGameState();
+
+        const evaluated = players.map(player => {
+          const seven = [...player.holeCards, ...community];
+          const best = bestHandFromSeven(seven);
+          return { ...player, best };
+        });
+
+        evaluated.sort((a,b)=>compareHands(b.best, a.best));
+        const top = evaluated[0];
+        const winners = evaluated.filter(p => compareHands(p.best, top.best) === 0);
+
+        let html = '';
+
+        html += `
+          <div class="result-card winner">
+            <div><b>${winners.length === 1 ? 'Kazanan' : 'Beraberlik'}</b></div>
+            <div style="margin-top:8px;"><b>${winners.map(w=>escapeHtml(w.name)).join(', ')}</b></div>
+            <div style="margin-top:8px; color:#6b7280;">${escapeHtml(handSummary(top.best))}</div>
+          </div>
+        `;
+
+        evaluated.forEach((player, idx) => {
+          const isWinner = winners.some(w => w.name === player.name && compareHands(w.best, player.best) === 0);
+          html += `
+            <div class="result-card ${isWinner ? 'winner' : ''}">
+              <div><b>#${idx+1} - ${escapeHtml(player.name)}</b></div>
+              <div style="margin-top:6px;">Kartları: ${escapeHtml(player.holeCards.map(cardLabel).join(' '))}</div>
+              <div style="margin-top:6px;">En iyi 5 kart: ${escapeHtml(player.best.bestCards.map(cardLabel).join(' '))}</div>
+              <div style="margin-top:6px;">El tipi: ${escapeHtml(CATEGORY_LABEL[player.best.category])}</div>
+              <div style="margin-top:6px; color:#6b7280;">${escapeHtml(handSummary(player.best))}</div>
+            </div>
+          `;
+        });
+
+        resultsEl.innerHTML = html;
+      }catch(err){
+        showError(err.message || 'Bir hata oluştu.');
+      }
+    }
+
+    function fillExample(){
+      clearError();
+      resetAll(false);
+
+      const communityCodes = ['AH','KH','QH','2C','2D'];
+      const communityPickers = [...communityContainer.querySelectorAll('.card-picker')];
+
+      communityCodes.forEach((code, i) => {
+        setSelectedSuit(communityPickers[i], code[1]);
+        setRankValue(communityPickers[i], code[0] === 'T' ? '10' : code[0]);
+      });
+
+      const playerEls = [...playersContainer.querySelectorAll('.player-card')];
+
+      const preset = [
+        { name:'Ali', cards:['JH','10H'] },
+        { name:'Veli', cards:['AS','AD'] },
+        { name:'Ayşe', cards:['2H','2S'] }
+      ];
+
+      while(playerEls.length < 3){
+        addPlayer();
+        playerEls.push(playersContainer.lastElementChild);
+      }
+
+      [...playersContainer.querySelectorAll('.player-card')].forEach((playerEl, idx) => {
+        const data = preset[idx] || null;
+        if(!data) return;
+
+        const pickers = playerEl.querySelectorAll('.card-picker');
+
+        data.cards.forEach((cardCode, i) => {
+          const rank = cardCode.slice(0, cardCode.length - 1);
+          const suit = cardCode.slice(-1);
+          setSelectedSuit(pickers[i], suit);
+          setRankValue(pickers[i], rank === 'T' ? '10' : rank);
+        });
+      });
+
+      resultsEl.innerHTML = `<div class="result-card">Örnek eller dolduruldu. “Kazananı Hesapla” butonuna bas.</div>`;
+    }
+
+    function resetAll(showMessage = true){
+      clearError();
+      playerCount = 0;
+      communityContainer.innerHTML = '';
+      playersContainer.innerHTML = '';
+      addCommunityCards();
+      addPlayer();
+      addPlayer();
+
+      if(showMessage){
+        resultsEl.innerHTML = `<div class="result-card">Tüm alanlar temizlendi.</div>`;
+      }
+    }
+
+    document.getElementById('resetBtn').addEventListener('click', () => resetAll(true));
+    document.getElementById('calcBtn').addEventListener('click', calculateWinner);
+
+    resetAll(false);
+  </script>
+</body>
+</html>
