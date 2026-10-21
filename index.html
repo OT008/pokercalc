@@ -303,6 +303,27 @@
 
     .toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
     .text-muted{color:var(--color-text-muted);}
+    .photo-help{margin:0;color:var(--color-text-secondary);font-size:13px;line-height:1.45;}
+    .photo-input{display:none;}
+    .photo-dialog{width:min(920px,calc(100vw - 20px));max-height:calc(100vh - 20px);padding:16px;border:1px solid var(--color-border-strong);border-radius:14px;background:var(--color-surface);color:var(--color-text-primary);overflow:auto;}
+    .photo-dialog::backdrop{background:rgba(37,40,58,.62);}
+    .photo-preview-wrap{position:relative;width:100%;margin:12px 0;background:var(--color-surface-secondary);border:1px solid var(--color-border);border-radius:10px;overflow:hidden;}
+    .photo-preview{display:block;width:100%;height:auto;max-height:48vh;object-fit:contain;}
+    .detect-status{padding:10px;border-radius:8px;background:var(--color-info-light);color:var(--color-text-secondary);font-size:13px;}
+    .detect-status.warning{background:var(--color-warning-light);color:#78591f;}
+    .mapping-grid{display:grid;gap:10px;margin-top:12px;}
+    .mapping-group{border:2px solid var(--group-color,var(--color-primary));border-radius:10px;padding:10px;background:var(--color-surface);}
+    .mapping-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+    .mapping-title{font-weight:700;}
+    .player-assignment,.move-select{min-height:38px;padding:7px;border:1px solid var(--color-border-strong);background:var(--color-surface);color:var(--color-text-primary);}
+    .mapping-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;}
+    .detected-card{display:grid;gap:6px;padding:8px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface-secondary);}
+    .detected-card-button{min-height:48px;border:2px solid var(--color-border-strong);background:var(--color-surface);color:var(--color-text-primary);font-size:17px;}
+    .detected-card-button.missing{border-color:var(--color-error);color:var(--color-error);background:var(--color-error-light);}
+    .community-mapping{--group-color:var(--color-secondary);}
+    .photo-dialog-actions{display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:-16px;margin:16px -16px -16px;padding:12px 16px;background:var(--color-surface);border-top:1px solid var(--color-border);}
+    .card-picker.detect-missing{border-color:var(--color-error);background:var(--color-error-light);}
+    .card-picker.detect-missing .rank-trigger{border-color:var(--color-error);color:var(--color-error);}
 
     @media (max-width: 700px){
       .players{grid-template-columns:1fr;}
@@ -345,6 +366,19 @@
 <body>
   <div class="container">
     <div class="panel">
+      <div class="toolbar">
+        <div>
+          <h2 class="section-title" style="margin-bottom:4px;">Fotoğraftan kartları al</h2>
+          <p class="photo-help">Üstte oyuncu elleri, altta 5 ortak kart olacak şekilde çekilmiş fotoğrafı seçin.</p>
+        </div>
+        <div class="actions" style="margin-top:0;">
+          <label class="btn-primary" for="photoInput" style="display:flex;align-items:center;cursor:pointer;border-radius:8px;font-weight:700;padding:8px 12px;">Fotoğraf Seç</label>
+          <input id="photoInput" class="photo-input" type="file" accept="image/*" capture="environment" />
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
       <h2 class="section-title">Ortak Kartlar</h2>
       <div id="communityCards" class="community-grid"></div>
     </div>
@@ -373,6 +407,20 @@
       </div>
     </div>
   </div>
+
+  <dialog id="photoDialog" class="photo-dialog" aria-labelledby="photoDialogTitle">
+    <div class="rank-dialog-head">
+      <h2 id="photoDialogTitle" class="rank-dialog-title">Fotoğraf eşleştirme</h2>
+      <button id="photoDialogClose" class="rank-dialog-close" type="button" aria-label="Pencereyi kapat">&times;</button>
+    </div>
+    <div id="detectStatus" class="detect-status">Fotoğraf işleniyor…</div>
+    <div class="photo-preview-wrap"><canvas id="photoPreview" class="photo-preview"></canvas></div>
+    <div id="mappingGroups" class="mapping-grid"></div>
+    <div class="photo-dialog-actions">
+      <button id="addManualGroupBtn" type="button">Grup Ekle</button>
+      <button id="transferPhotoBtn" class="btn-primary" type="button">Ana Tabloya Aktar</button>
+    </div>
+  </dialog>
 
   <dialog id="rankDialog" class="rank-dialog" aria-labelledby="rankDialogTitle">
     <div class="rank-dialog-head">
@@ -439,9 +487,16 @@
     const errorBox = document.getElementById('errorBox');
     const rankDialog = document.getElementById('rankDialog');
     const rankDialogTitle = document.getElementById('rankDialogTitle');
+    const photoDialog = document.getElementById('photoDialog');
+    const photoPreview = document.getElementById('photoPreview');
+    const mappingGroups = document.getElementById('mappingGroups');
+    const detectStatus = document.getElementById('detectStatus');
     let activeRankPicker = null;
+    let activePhotoCard = null;
     let pendingSuit = '';
     let pendingRank = '';
+    let photoState = { image:null, groups:[], community:[], structureReliable:false };
+    let detectedCardId = 0;
 
     let playerCount = 0;
 
@@ -453,6 +508,302 @@
     function clearError(){
       errorBox.style.display = 'none';
       errorBox.textContent = '';
+    }
+
+    function emptyDetectedCard(){
+      return { id:`empty_${++detectedCardId}`, x:null, y:null, w:null, h:null, rank:'', suit:'', detected:false };
+    }
+
+    function cardDisplay(card){
+      if(!card || !card.rank || !card.suit) return 'Algılanamadı';
+      const suit = SUITS.find(item => item.code === card.suit);
+      return `${suit ? suit.symbol : ''} ${card.rank}`;
+    }
+
+    function setDetectStatus(message, warning=false){
+      detectStatus.textContent = message;
+      detectStatus.classList.toggle('warning', warning);
+    }
+
+    async function loadPhoto(file){
+      setDetectStatus('Fotoğraf işleniyor…');
+      photoState = { image:null, groups:[], community:[], structureReliable:false };
+      photoDialog.showModal();
+      try{
+        let bitmap;
+        try{ bitmap = await createImageBitmap(file, { imageOrientation:'from-image' }); }
+        catch(_orientationError){ bitmap = await createImageBitmap(file); }
+        const maxSide = 1400;
+        const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+        photoPreview.width = Math.round(bitmap.width * scale);
+        photoPreview.height = Math.round(bitmap.height * scale);
+        const ctx = photoPreview.getContext('2d', { willReadFrequently:true });
+        ctx.drawImage(bitmap, 0, 0, photoPreview.width, photoPreview.height);
+        photoState.image = ctx.getImageData(0, 0, photoPreview.width, photoPreview.height);
+        const cards = detectCardRectangles(photoState.image);
+        buildPhotoGroups(cards);
+        await detectVisibleRanks(cards);
+        renderPhotoMapping();
+      }catch(err){
+        setDetectStatus(`Fotoğraf işlenemedi: ${err.message || 'Bilinmeyen hata'}`, true);
+        buildManualPhotoLayout(2);
+        renderPhotoMapping();
+      }
+    }
+
+    function detectCardRectangles(imageData){
+      const {width,height,data} = imageData;
+      const sampleScale = Math.min(1, 560 / Math.max(width,height));
+      const sw = Math.max(1, Math.round(width * sampleScale));
+      const sh = Math.max(1, Math.round(height * sampleScale));
+      const sample = document.createElement('canvas');
+      sample.width = sw; sample.height = sh;
+      const sctx = sample.getContext('2d', {willReadFrequently:true});
+      sctx.drawImage(photoPreview,0,0,sw,sh);
+      const pixels = sctx.getImageData(0,0,sw,sh).data;
+      const mask = new Uint8Array(sw*sh);
+      for(let i=0,p=0;i<pixels.length;i+=4,p++){
+        const r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+        const max=Math.max(r,g,b),min=Math.min(r,g,b);
+        if((r+g+b)/3>168 && max-min<82) mask[p]=1;
+      }
+      const seen = new Uint8Array(mask.length);
+      const stack = new Int32Array(mask.length);
+      const candidates=[];
+      const minArea=sw*sh*.0015, maxArea=sw*sh*.16;
+      for(let start=0;start<mask.length;start++){
+        if(!mask[start]||seen[start]) continue;
+        let top=0,count=0,minX=sw,maxX=0,minY=sh,maxY=0;
+        stack[top++]=start; seen[start]=1;
+        while(top){
+          const p=stack[--top],x=p%sw,y=(p/sw)|0; count++;
+          if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;
+          const neighbors=[p-1,p+1,p-sw,p+sw];
+          for(const n of neighbors){
+            if(n<0||n>=mask.length||seen[n]||!mask[n])continue;
+            const nx=n%sw;if(Math.abs(nx-x)>1)continue;
+            seen[n]=1;stack[top++]=n;
+          }
+        }
+        const bw=maxX-minX+1,bh=maxY-minY+1,boxArea=bw*bh;
+        if(count<minArea||count>maxArea||boxArea===0)continue;
+        const ratio=Math.max(bw,bh)/Math.min(bw,bh),fill=count/boxArea;
+        if(ratio<1.12||ratio>2.05||fill<.48)continue;
+        const inv=1/sampleScale;
+        candidates.push({id:`det_${++detectedCardId}`,x:minX*inv,y:minY*inv,w:bw*inv,h:bh*inv,rank:'',suit:'',detected:true});
+      }
+      return candidates.filter((card,index,all)=>!all.some((other,j)=>j!==index && other.w*other.h>card.w*card.h && card.x>=other.x && card.y>=other.y && card.x+card.w<=other.x+other.w && card.y+card.h<=other.y+other.h));
+    }
+
+    function buildPhotoGroups(cards){
+      const h=photoPreview.height;
+      const sorted=[...cards].sort((a,b)=>(a.y+a.h/2)-(b.y+b.h/2));
+      let lower=sorted.slice(-5).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+      let upper=sorted.slice(0,-5).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+      const lowerY=lower.length?lower.reduce((s,c)=>s+c.y+c.h/2,0)/lower.length:0;
+      const upperY=upper.length?upper.reduce((s,c)=>s+c.y+c.h/2,0)/upper.length:0;
+      const reliable=lower.length===5 && upper.length>=2 && lowerY-upperY>h*.10;
+      photoState.structureReliable=reliable;
+      if(!reliable){
+        const estimatedGroups=Math.max(2,Math.ceil(Math.max(0,cards.length-5)/2));
+        buildManualPhotoLayout(estimatedGroups,cards);
+        setDetectStatus(`Kart yapısı güvenle ayrılamadı. ${cards.length} olası kart bulundu; grupları ve kartları elle düzenleyin.`,true);
+        return;
+      }
+      photoState.community=lower;
+      photoState.groups=[];
+      for(let i=0;i<upper.length;i+=2){
+        photoState.groups.push([upper[i],upper[i+1]||emptyDetectedCard()]);
+      }
+      setDetectStatus(`${cards.length} kart konumu bulundu. Üst bölüm ${photoState.groups.length} oyuncu grubuna, alt bölüm 5 ortak karta ayrıldı. Kart değerlerini kontrol edin.`,false);
+    }
+
+    function buildManualPhotoLayout(groupCount=2,cards=[]){
+      const ordered=[...cards].sort((a,b)=>(a.y-b.y)||(a.x-b.x));
+      photoState.groups=Array.from({length:groupCount},()=>[emptyDetectedCard(),emptyDetectedCard()]);
+      photoState.community=Array.from({length:5},()=>emptyDetectedCard());
+      ordered.forEach((card,index)=>{
+        if(index<groupCount*2) photoState.groups[(index/2)|0][index%2]=card;
+        else if(index<groupCount*2+5) photoState.community[index-groupCount*2]=card;
+      });
+    }
+
+    async function detectVisibleRanks(cards){
+      if(!('TextDetector' in window) || !cards.length) return;
+      try{
+        const detector=new TextDetector();
+        for(const card of cards){
+          const crop=document.createElement('canvas');
+          crop.width=Math.max(1,Math.round(card.w));crop.height=Math.max(1,Math.round(card.h));
+          crop.getContext('2d').drawImage(photoPreview,card.x,card.y,card.w,card.h,0,0,crop.width,crop.height);
+          for(let turn=0;turn<4&&(!card.rank||!card.suit);turn++){
+            const oriented=turn===0?crop:rotateCanvasQuarter(crop,turn);
+            const texts=await detector.detect(oriented);
+            const raw=texts.map(item=>item.rawValue||'').join(' ').toUpperCase();
+            const match=raw.match(/(?:10|[2-9AJQK])/);
+            if(match) card.rank=match[0];
+            const suitMatch=raw.match(/[♥♦♠♣]/);
+            if(suitMatch) card.suit=({ '♥':'H','♦':'D','♠':'S','♣':'C' })[suitMatch[0]];
+          }
+        }
+      }catch(_err){ /* Desteklenmeyen OCR güvenli biçimde atlanır. */ }
+    }
+
+    function rotateCanvasQuarter(source,turn){
+      const odd=turn%2===1;
+      const canvas=document.createElement('canvas');
+      canvas.width=odd?source.height:source.width;canvas.height=odd?source.width:source.height;
+      const ctx=canvas.getContext('2d');
+      ctx.translate(canvas.width/2,canvas.height/2);
+      ctx.rotate(turn*Math.PI/2);
+      ctx.drawImage(source,-source.width/2,-source.height/2);
+      return canvas;
+    }
+
+    function groupColor(index){
+      return ['#8E8AC7','#4C9B76','#C5943F','#D28FAF','#528FC4','#A86F4C'][index%6];
+    }
+
+    function allPhotoCards(){
+      return [...photoState.groups.flat(),...photoState.community];
+    }
+
+    function drawPhotoOverlay(){
+      if(!photoState.image)return;
+      const ctx=photoPreview.getContext('2d');
+      ctx.putImageData(photoState.image,0,0);
+      ctx.lineWidth=Math.max(3,photoPreview.width/250);
+      ctx.font=`700 ${Math.max(15,photoPreview.width/35)}px Arial`;
+      photoState.groups.forEach((group,index)=>{
+        ctx.strokeStyle=groupColor(index);ctx.fillStyle=groupColor(index);
+        group.forEach(card=>{
+          if(card.x==null)return;
+          ctx.strokeRect(card.x,card.y,card.w,card.h);
+          ctx.fillText(`G${index+1}`,card.x+4,Math.max(18,card.y-5));
+        });
+      });
+      ctx.strokeStyle='#5689B2';ctx.fillStyle='#5689B2';
+      photoState.community.forEach(card=>{
+        if(card.x==null)return;
+        ctx.strokeRect(card.x,card.y,card.w,card.h);
+        ctx.fillText('ORTAK',card.x+4,Math.max(18,card.y-5));
+      });
+    }
+
+    function playerOptionMarkup(selectedIndex,groupIndex){
+      const count=Math.max(photoState.groups.length,playersContainer.querySelectorAll('.player-card').length);
+      let html='<option value="">Oyuncu seç</option>';
+      for(let i=0;i<count;i++) html+=`<option value="${i}" ${i===selectedIndex?'selected':''}>Oyuncu ${i+1}</option>`;
+      return html;
+    }
+
+    function cardTargetMarkup(location){
+      let html='';
+      photoState.groups.forEach((_g,index)=>{
+        for(let slot=0;slot<2;slot++)html+=`<option value="g:${index}:${slot}" ${location===`g:${index}:${slot}`?'selected':''}>Grup ${index+1} · Kart ${slot+1}</option>`;
+      });
+      for(let slot=0;slot<5;slot++)html+=`<option value="community:${slot}" ${location===`community:${slot}`?'selected':''}>Ortak · Kart ${slot+1}</option>`;
+      return html;
+    }
+
+    function detectedCardMarkup(card,location){
+      const complete=card.rank&&card.suit;
+      return `<div class="detected-card" data-photo-card="${card.id}">
+        <button type="button" class="detected-card-button ${complete?'':'missing'}" data-edit-photo-card="${card.id}">${cardDisplay(card)}</button>
+        <select class="move-select" data-move-photo-card="${card.id}" aria-label="Kartın grubunu değiştir">${cardTargetMarkup(location)}</select>
+      </div>`;
+    }
+
+    function renderPhotoMapping(){
+      drawPhotoOverlay();
+      let html='';
+      photoState.groups.forEach((group,index)=>{
+        const assigned=Number.isInteger(group.playerIndex)?group.playerIndex:index;
+        group.playerIndex=assigned;
+        html+=`<section class="mapping-group" style="--group-color:${groupColor(index)}">
+          <div class="mapping-head"><span class="mapping-title">Grup ${index+1}</span>
+          <label>Oyuncu seç: <select class="player-assignment" data-group-index="${index}">${playerOptionMarkup(assigned,index)}</select></label></div>
+          <div class="mapping-cards">${group.map((card,slot)=>detectedCardMarkup(card,`g:${index}:${slot}`)).join('')}</div>
+        </section>`;
+      });
+      html+=`<section class="mapping-group community-mapping"><div class="mapping-head"><span class="mapping-title">Ortak Kartlar</span></div><div class="mapping-cards">${photoState.community.map((card,slot)=>detectedCardMarkup(card,`community:${slot}`)).join('')}</div></section>`;
+      mappingGroups.innerHTML=html;
+      bindPhotoMappingEvents();
+      updateAssignmentAvailability();
+    }
+
+    function findPhotoCard(id){
+      for(let i=0;i<photoState.groups.length;i++){
+        const slot=photoState.groups[i].findIndex(card=>card.id===id);
+        if(slot>=0)return {card:photoState.groups[i][slot],collection:photoState.groups[i],slot,location:`g:${i}:${slot}`};
+      }
+      const slot=photoState.community.findIndex(card=>card.id===id);
+      return slot>=0?{card:photoState.community[slot],collection:photoState.community,slot,location:`community:${slot}`}:null;
+    }
+
+    function bindPhotoMappingEvents(){
+      mappingGroups.querySelectorAll('[data-edit-photo-card]').forEach(button=>button.addEventListener('click',()=>{
+        const found=findPhotoCard(button.dataset.editPhotoCard);if(!found)return;
+        activePhotoCard=found.card;activeRankPicker=null;
+        pendingSuit=found.card.suit||'';pendingRank=found.card.rank||'';
+        rankDialogTitle.textContent='Algılanan kartı düzelt';updateDialogSelection();rankDialog.showModal();
+      }));
+      mappingGroups.querySelectorAll('[data-move-photo-card]').forEach(select=>select.addEventListener('change',()=>movePhotoCard(select.dataset.movePhotoCard,select.value)));
+      mappingGroups.querySelectorAll('.player-assignment').forEach(select=>select.addEventListener('change',()=>{
+        const index=Number(select.dataset.groupIndex);
+        photoState.groups[index].playerIndex=select.value===''?null:Number(select.value);
+        updateAssignmentAvailability();
+      }));
+    }
+
+    function movePhotoCard(id,target){
+      const found=findPhotoCard(id);if(!found||found.location===target)return;
+      const parts=target.split(':');
+      const destination=parts[0]==='community'?photoState.community:photoState.groups[Number(parts[1])];
+      const destinationSlot=Number(parts[parts.length-1]);
+      const swapped=destination[destinationSlot];
+      destination[destinationSlot]=found.card;found.collection[found.slot]=swapped;
+      renderPhotoMapping();
+    }
+
+    function updateAssignmentAvailability(){
+      const selects=[...mappingGroups.querySelectorAll('.player-assignment')];
+      const values=selects.map(select=>select.value).filter(value=>value!=='');
+      selects.forEach(select=>{
+        [...select.options].forEach(option=>{
+          option.disabled=option.value!==''&&option.value!==select.value&&values.includes(option.value);
+        });
+      });
+    }
+
+    function addManualPhotoGroup(){
+      const group=[emptyDetectedCard(),emptyDetectedCard()];
+      group.playerIndex=photoState.groups.length;
+      photoState.groups.push(group);renderPhotoMapping();
+    }
+
+    function applyDetectedCardToPicker(card,picker){
+      setSelectedSuit(picker,card&&card.suit?card.suit:'');
+      setRankValue(picker,card&&card.rank?card.rank:'');
+      picker.classList.toggle('detect-missing',!(card&&card.suit&&card.rank));
+    }
+
+    function transferPhotoToTable(){
+      const assignments=photoState.groups.map(group=>group.playerIndex);
+      if(assignments.some(value=>!Number.isInteger(value))){setDetectStatus('Her grup için bir oyuncu seçin.',true);return;}
+      if(new Set(assignments).size!==assignments.length){setDetectStatus('Aynı oyuncuya iki grup atanamaz.',true);return;}
+      const needed=Math.max(2,...assignments.map(value=>value+1));
+      while(playersContainer.querySelectorAll('.player-card').length<needed)addPlayer();
+      const playerEls=[...playersContainer.querySelectorAll('.player-card')];
+      playerEls.forEach(player=>player.querySelectorAll('.card-picker').forEach(picker=>applyDetectedCardToPicker(null,picker)));
+      photoState.groups.forEach(group=>{
+        const pickers=playerEls[group.playerIndex].querySelectorAll('.card-picker');
+        applyDetectedCardToPicker(group[0],pickers[0]);applyDetectedCardToPicker(group[1],pickers[1]);
+      });
+      const communityPickers=[...communityContainer.querySelectorAll('.card-picker')];
+      communityPickers.forEach((picker,index)=>applyDetectedCardToPicker(photoState.community[index],picker));
+      resultsEl.innerHTML='<div class="result-card">Fotoğraf eşleştirmesi ana tabloya aktarıldı. Kırmızı alanları elle tamamlayın.</div>';
+      clearError();photoDialog.close();
     }
 
     function createCardPicker(title, idPrefix){
@@ -493,6 +844,7 @@
     function setRankValue(cardPicker, value){
       cardPicker.querySelector('.rank-input').value = value;
       updateCardTrigger(cardPicker);
+      if(getSelectedSuit(cardPicker)&&getRankValue(cardPicker))cardPicker.classList.remove('detect-missing');
     }
 
     function updateCardTrigger(cardPicker){
@@ -509,6 +861,13 @@
 
     function getUsedCardCodes(excludedPicker){
       const used = new Set();
+      if(activePhotoCard){
+        allPhotoCards().forEach(card=>{
+          if(card===activePhotoCard||!card.rank||!card.suit)return;
+          used.add(normalizedCardCode(card.rank,card.suit));
+        });
+        return used;
+      }
       document.querySelectorAll('.card-picker').forEach(picker => {
         if(picker === excludedPicker) return;
         const suit = getSelectedSuit(picker);
@@ -948,13 +1307,27 @@
         setSelectedSuit(activeRankPicker, pendingSuit);
         setRankValue(activeRankPicker, pendingRank);
         rankDialog.close();
+      }else if(activePhotoCard && pendingSuit && pendingRank){
+        activePhotoCard.suit=pendingSuit;
+        activePhotoCard.rank=pendingRank;
+        rankDialog.close();
+        renderPhotoMapping();
       }
     });
     rankDialog.addEventListener('close', () => {
       activeRankPicker = null;
+      activePhotoCard = null;
       pendingSuit = '';
       pendingRank = '';
     });
+    document.getElementById('photoInput').addEventListener('change', event=>{
+      const file=event.target.files&&event.target.files[0];
+      if(file)loadPhoto(file);
+      event.target.value='';
+    });
+    document.getElementById('photoDialogClose').addEventListener('click',()=>photoDialog.close());
+    document.getElementById('addManualGroupBtn').addEventListener('click',addManualPhotoGroup);
+    document.getElementById('transferPhotoBtn').addEventListener('click',transferPhotoToTable);
     resetAll(false);
   </script>
 </body>
