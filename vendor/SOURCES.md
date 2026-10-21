@@ -1,0 +1,9 @@
+# Sabit bağımlılıklar
+
+- **OpenCV.js 4.10.0**: `https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js`. WASM bu JS içine gömülüdür. Apache-2.0 lisansı `OpenCV-LICENSE.txt` içindedir. Geometri API kaynakları: https://docs.opencv.org/4.10.0/dc/dcf/tutorial_js_contour_features.html ve https://docs.opencv.org/4.10.0/dd/d52/tutorial_js_geometric_transformations.html.
+- **ONNX Runtime Web 1.20.1**: `ort.wasm.min.js`, `ort-wasm-simd-threaded.mjs`, `ort-wasm-simd-threaded.wasm`; `https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/`. Tek iş parçacığı seçilir. MIT lisansı `ONNXRuntime-LICENSE.txt` içindedir.
+- **Eğitilmiş İngilizce PP-OCRv3 tanıma modeli**: `https://huggingface.co/SWHL/RapidOCR/resolve/4e46440/PP-OCRv3/en_PP-OCRv3_rec_infer.onnx`; `models/en_PP-OCRv3_rec_infer.onnx`, 8,967,018 bayt. SHA-256: `ef7abd8bd3629ae57ea2c28b425c1bd258a871b93fd2fe7c433946ade9b5d9ea`. Kaynak model kartı: https://huggingface.co/SWHL/RapidOCR. Apache-2.0.
+- **OCR sözlüğü**: `https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/ppocr/utils/en_dict.txt`. Boşluk dahil satırlar korunur; CTC blank ve ek boşlukla 97 çıktı sınıfına eşlenir. PaddleOCR Apache-2.0 lisansı `models/PaddleOCR-LICENSE.txt` içindedir.
+- **Genel şekil şablonları**: `rank-templates.json`; bütün değerler ve semboller için font çıktılarından üretilmiş ikili siluetlerdir. Rajdhani SemiBold (Google Fonts, SIL OFL), Bahnschrift, Arial Bold, Calibri Bold, Consolas Bold ve sistem sembol fontlarının çizimleri kullanılmıştır. Windows font dosyaları dağıtılmaz. Rajdhani lisansı `Rajdhani-OFL.txt` içindedir. Hiçbir kullanıcı fotoğrafından şekil veya etiket öğrenilmemiştir.
+
+Model ve çalışma dosyaları yereldir. Uygulama CDN, Hugging Face, OCR servisi veya bir modele fotoğraf yollamaz. Yalnızca bu kaynak dosyaları geliştirme sırasında indirilmiştir.
